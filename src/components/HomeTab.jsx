@@ -1,0 +1,298 @@
+import { useState } from "react";
+import FloatAnim from "./FloatAnim.jsx";
+import { INITIAL_CARDS, EMOJIS, BGS } from "../data/ground-data.js";
+import { getGradientFromBg } from "../utils/ground-utils.js";
+
+export default function HomeTab({ seeds, setSeeds }) {
+  const [cards, setCards] = useState(INITIAL_CARDS);
+  const [showForm, setShowForm] = useState(false);
+  const [newText, setNewText] = useState("");
+  const [newEmoji, setNewEmoji] = useState("🙏");
+  const [newBg, setNewBg] = useState("from-green-200 to-teal-300");
+  const [sparkId, setSparkId] = useState(null);
+  const [floaters, setFloaters] = useState([]);
+
+  const handlePray = (id) => {
+    setCards((prev) =>
+      prev.map((c) => {
+        if (c.id === id && !c.prayed) {
+          setSparkId(id);
+          setTimeout(() => setSparkId(null), 700);
+          setSeeds((s) => s + 2);
+          const fid = Date.now();
+          setFloaters((f) => [...f, { id: fid, cardId: id }]);
+          setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== fid)), 1000);
+          return { ...c, count: c.count + 1, prayed: true };
+        }
+        return c;
+      })
+    );
+  };
+
+  const handleAdd = () => {
+    if (!newText.trim()) return;
+    setCards((prev) => [
+      {
+        id: Date.now(),
+        user: "나",
+        avatar: "😊",
+        text: newText,
+        emoji: newEmoji,
+        bg: newBg,
+        count: 0,
+        prayed: false,
+        time: "방금",
+      },
+      ...prev,
+    ]);
+    setSeeds((s) => s + 10);
+    setNewText("");
+    setShowForm(false);
+  };
+
+  return (
+    <div style={{ padding: "0 16px 100px" }}>
+      <div
+        style={{
+          background: "linear-gradient(135deg, #6ee7b7 0%, #3b82f6 100%)",
+          borderRadius: 20,
+          padding: "18px 20px",
+          marginBottom: 20,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          boxShadow: "0 8px 24px rgba(59,130,246,0.25)",
+        }}
+      >
+        <div>
+          <div style={{ color: "white", fontSize: 13, opacity: 0.85, fontFamily: "inherit" }}>
+            오늘의 말씀
+          </div>
+          <div style={{ color: "white", fontSize: 15, fontWeight: 700, marginTop: 4, lineHeight: 1.4 }}>
+            "내가 너를 강하게 하리라"
+            <br />
+            <span style={{ fontSize: 12, opacity: 0.8 }}>— 이사야 41:10</span>
+          </div>
+        </div>
+        <div style={{ fontSize: 40 }}>🌿</div>
+      </div>
+
+      <button
+        onClick={() => setShowForm(!showForm)}
+        style={{
+          width: "100%",
+          padding: "14px",
+          borderRadius: 14,
+          background: showForm ? "#f1f5f9" : "white",
+          border: "2px dashed #93c5fd",
+          cursor: "pointer",
+          color: "#3b82f6",
+          fontWeight: 600,
+          fontSize: 14,
+          marginBottom: 16,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          fontFamily: "inherit",
+          transition: "all 0.2s",
+        }}
+      >
+        {showForm ? "✕ 닫기" : "✏️ 오늘의 기도 카드 작성하기"}
+      </button>
+
+      {showForm && (
+        <div
+          style={{
+            background: "white",
+            borderRadius: 16,
+            padding: 16,
+            marginBottom: 16,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+          }}
+        >
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6, fontWeight: 600 }}>
+              배경 색상
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {BGS.map((bg) => (
+                <div
+                  key={bg}
+                  onClick={() => setNewBg(bg)}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    backgroundImage: `linear-gradient(135deg, ${getGradientFromBg(bg)})`,
+                    border: newBg === bg ? "3px solid #3b82f6" : "2px solid transparent",
+                    cursor: "pointer",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6, fontWeight: 600 }}>
+              감정 스티커
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {EMOJIS.map((e) => (
+                <span
+                  key={e}
+                  onClick={() => setNewEmoji(e)}
+                  style={{
+                    fontSize: 24,
+                    cursor: "pointer",
+                    background: newEmoji === e ? "#eff6ff" : "transparent",
+                    borderRadius: 8,
+                    padding: 4,
+                    border: newEmoji === e ? "2px solid #3b82f6" : "2px solid transparent",
+                  }}
+                >
+                  {e}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <textarea
+            value={newText}
+            onChange={(e) => setNewText(e.target.value)}
+            maxLength={50}
+            placeholder="오늘의 기도 제목을 적어주세요 (최대 50자)"
+            style={{
+              width: "100%",
+              minHeight: 70,
+              border: "1.5px solid #e2e8f0",
+              borderRadius: 10,
+              padding: 10,
+              fontSize: 14,
+              fontFamily: "inherit",
+              resize: "none",
+              outline: "none",
+              boxSizing: "border-box",
+              color: "#1e293b",
+            }}
+          />
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+            <span style={{ fontSize: 12, color: "#94a3b8" }}>{newText.length}/50</span>
+            <button
+              onClick={handleAdd}
+              style={{
+                background: "linear-gradient(135deg, #6ee7b7, #3b82f6)",
+                color: "white",
+                border: "none",
+                borderRadius: 10,
+                padding: "8px 20px",
+                fontWeight: 700,
+                cursor: "pointer",
+                fontSize: 13,
+                fontFamily: "inherit",
+              }}
+            >
+              작성하기 (+10 🌱)
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {cards.map((card, i) => (
+          <FloatAnim key={card.id} delay={i * 0.05}>
+            <div
+              style={{
+                background: `linear-gradient(135deg, ${getGradientFromBg(card.bg)})`,
+                borderRadius: 18,
+                padding: "16px",
+                position: "relative",
+                overflow: "hidden",
+                boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: "50%",
+                      background: "rgba(255,255,255,0.7)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 18,
+                    }}
+                  >
+                    {card.avatar}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: "#1e293b" }}>{card.user}</div>
+                    <div style={{ fontSize: 11, color: "#64748b" }}>{card.time}</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: 26 }}>{card.emoji}</span>
+              </div>
+              <div
+                style={{
+                  marginTop: 10,
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: "#1e293b",
+                  lineHeight: 1.5,
+                }}
+              >
+                "{card.text}"
+              </div>
+              <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end", position: "relative" }}>
+                {floaters
+                  .filter((f) => f.cardId === card.id)
+                  .map((f) => (
+                    <div
+                      key={f.id}
+                      style={{
+                        position: "absolute",
+                        right: 60,
+                        bottom: 30,
+                        color: "#16a34a",
+                        fontWeight: 800,
+                        fontSize: 14,
+                        animation: "floatSeed 1s ease forwards",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      +2 🌱
+                    </div>
+                  ))}
+                <button
+                  onClick={() => handlePray(card.id)}
+                  style={{
+                    background: card.prayed ? "rgba(255,255,255,0.9)" : "white",
+                    border: "none",
+                    borderRadius: 20,
+                    padding: "7px 14px",
+                    cursor: card.prayed ? "default" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    fontFamily: "inherit",
+                    color: card.prayed ? "#16a34a" : "#3b82f6",
+                    boxShadow: sparkId === card.id ? "0 0 0 4px rgba(99,102,241,0.3)" : "none",
+                    transition: "all 0.2s",
+                    transform: sparkId === card.id ? "scale(1.1)" : "scale(1)",
+                  }}
+                >
+                  {card.prayed ? "✓ 기도했어요" : "🙏 함께 기도하기"} · {card.count}
+                </button>
+              </div>
+            </div>
+          </FloatAnim>
+        ))}
+      </div>
+    </div>
+  );
+}
