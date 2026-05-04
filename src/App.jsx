@@ -1,4 +1,7 @@
 ﻿import { useState } from "react";
+import { useAuth } from "./hooks/useAuth";
+import { logout } from "./firebase/services/authService";
+import LoginPage from "./components/LoginPage.jsx";
 import HomeTab from "./components/HomeTab.jsx";
 import CrewTab from "./components/CrewTab.jsx";
 import ChallengeTab from "./components/ChallengeTab.jsx";
@@ -6,15 +9,50 @@ import MeetingTab from "./components/MeetingTab.jsx";
 import MyTab from "./components/MyTab.jsx";
 
 export default function GroundApp() {
+  const { user, userProfile, loading } = useAuth();
   const [tab, setTab] = useState("home");
-  const [seeds, setSeeds] = useState(185);
 
+  const handleLogout = async () => {
+    if (window.confirm("로그아웃 하시겠습니까?")) {
+      try {
+        await logout();
+      } catch (err) {
+        alert("로그아웃 실패: " + err.message);
+      }
+    }
+  };
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "100vh",
+          background: "linear-gradient(135deg, #6ee7b7 0%, #3b82f6 100%)",
+          color: "white",
+          fontSize: 18,
+          fontFamily: "'Noto Sans KR', sans-serif",
+        }}
+      >
+        🔄 로딩 중...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  const seeds = userProfile?.seeds || 0;
+
+  // 크루, 모임 탭은 숨김 처리 (나중에 구현)
   const tabs = [
-    { id: "home", label: "홈", icon: "🏠" },
-    { id: "crew", label: "크루", icon: "👥" },
-    { id: "challenge", label: "챌린지", icon: "🎯" },
+    { id: "home",    label: "홈",   icon: "🏠" },
+    { id: "crew",    label: "크루", icon: "👥" },
     { id: "meeting", label: "모임", icon: "📍" },
-    { id: "my", label: "마이", icon: "🌿" },
+    { id: "my",      label: "마이", icon: "🌿" },
   ];
 
   return (
@@ -56,28 +94,55 @@ export default function GroundApp() {
             그라운드
           </span>
         </div>
-        <div
-          style={{
-            background: "linear-gradient(135deg, #6ee7b7, #3b82f6)",
-            borderRadius: 99,
-            padding: "5px 12px",
-            color: "white",
-            fontWeight: 700,
-            fontSize: 13,
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-          }}
-        >
-          🌱 {seeds}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div
+            style={{
+              background: "linear-gradient(135deg, #6ee7b7, #3b82f6)",
+              borderRadius: 99,
+              padding: "5px 12px",
+              color: "white",
+              fontWeight: 700,
+              fontSize: 13,
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            🌱 {seeds}
+          </div>
+          <button
+            onClick={handleLogout}
+            style={{
+              background: "transparent",
+              border: "1px solid #cbd5e1",
+              borderRadius: 8,
+              padding: "6px 10px",
+              color: "#64748b",
+              fontWeight: 600,
+              fontSize: 12,
+              cursor: "pointer",
+              transition: "all 0.2s",
+              fontFamily: "inherit",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.background = "#f1f5f9";
+              e.target.style.color = "#1e293b";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = "transparent";
+              e.target.style.color = "#64748b";
+            }}
+          >
+            로그아웃
+          </button>
         </div>
       </div>
 
       <div style={{ paddingTop: 16 }}>
-        {tab === "home" && <HomeTab seeds={seeds} setSeeds={setSeeds} />}
+        {tab === "home" && <HomeTab seeds={seeds} />}
         {tab === "crew" && <CrewTab />}
-        {tab === "challenge" && <ChallengeTab seeds={seeds} setSeeds={setSeeds} />}
-        {tab === "meeting" && <MeetingTab seeds={seeds} setSeeds={setSeeds} />}
+        {tab === "challenge" && <ChallengeTab seeds={seeds} />}
+        {tab === "meeting" && <MeetingTab seeds={seeds} />}
         {tab === "my" && <MyTab seeds={seeds} />}
       </div>
 

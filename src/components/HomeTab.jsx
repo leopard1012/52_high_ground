@@ -1,53 +1,84 @@
 import { useState } from "react";
 import FloatAnim from "./FloatAnim.jsx";
-import { INITIAL_CARDS, EMOJIS, BGS } from "../data/ground-data.js";
+import { useCards } from "../hooks/useCards";
+import { useAuth } from "../hooks/useAuth";
+import { EMOJIS, BGS } from "../data/ground-data.js";
 import { getGradientFromBg } from "../utils/ground-utils.js";
+import { updateUserSeeds } from "../firebase/services/authService";
 
-export default function HomeTab({ seeds, setSeeds }) {
-  const [cards, setCards] = useState(INITIAL_CARDS);
+export default function HomeTab({ seeds }) {
+  const { user, userProfile } = useAuth();
+  const today = new Date().toISOString().slice(0, 10);
+  const { cards, loading, error, addCard, pray } = useCards(userProfile?.crewId);
   const [showForm, setShowForm] = useState(false);
   const [newText, setNewText] = useState("");
   const [newEmoji, setNewEmoji] = useState("🙏");
   const [newBg, setNewBg] = useState("from-green-200 to-teal-300");
   const [sparkId, setSparkId] = useState(null);
   const [floaters, setFloaters] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handlePray = (id) => {
-    setCards((prev) =>
-      prev.map((c) => {
-        if (c.id === id && !c.prayed) {
-          setSparkId(id);
-          setTimeout(() => setSparkId(null), 700);
-          setSeeds((s) => s + 2);
-          const fid = Date.now();
-          setFloaters((f) => [...f, { id: fid, cardId: id }]);
-          setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== fid)), 1000);
-          return { ...c, count: c.count + 1, prayed: true };
-        }
-        return c;
-      })
-    );
+  const handlePray = async (cardId) => {
+    if (!user) {
+      alert("로그인이 필요합니다");
+      return;
+    }
+
+    try {
+      await pray(cardId, user.uid);
+
+      // 애니메이션
+      setSparkId(cardId);
+      setTimeout(() => setSparkId(null), 700);
+
+      // 씨앗 증가 — useAuth onSnapshot이 자동으로 UI 갱신
+      await updateUserSeeds(user.uid, 2);
+
+      // 플로터 애니메이션
+      const fid = Date.now();
+      setFloaters((f) => [...f, { id: fid, cardId }]);
+      setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== fid)), 1000);
+    } catch (err) {
+      alert("기도 저장 실패: " + err.message);
+    }
   };
 
-  const handleAdd = () => {
-    if (!newText.trim()) return;
-    setCards((prev) => [
-      {
-        id: Date.now(),
-        user: "나",
-        avatar: "😊",
+  const handleAdd = async () => {
+    if (!newText.trim()) {
+      alert("내용을 입력해주세요");
+      return;
+    }
+
+    if (!user || !userProfile) {
+      alert("로그인이 필요합니다");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Firebase에 카드 추가
+      await addCard({
+        crewId: userProfile.crewId,
+        userId: user.uid,
+        user: userProfile.nickname,
+        avatar: userProfile.avatar,
         text: newText,
         emoji: newEmoji,
         bg: newBg,
-        count: 0,
-        prayed: false,
-        time: "방금",
-      },
-      ...prev,
-    ]);
-    setSeeds((s) => s + 10);
-    setNewText("");
-    setShowForm(false);
+      });
+
+      // 씨앗 증가 — useAuth onSnapshot이 자동으로 UI 갱신
+      await updateUserSeeds(user.uid, 10);
+
+      // 폼 초기화
+      setNewText("");
+      setShowForm(false);
+    } catch (err) {
+      alert("카드 추가 실패: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -200,98 +231,126 @@ export default function HomeTab({ seeds, setSeeds }) {
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {cards.map((card, i) => (
-          <FloatAnim key={card.id} delay={i * 0.05}>
-            <div
-              style={{
-                background: `linear-gradient(135deg, ${getGradientFromBg(card.bg)})`,
-                borderRadius: 18,
-                padding: "16px",
-                position: "relative",
-                overflow: "hidden",
-                boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div
-                    style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: "50%",
-                      background: "rgba(255,255,255,0.7)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 18,
-                    }}
-                  >
-                    {card.avatar}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: "#1e293b" }}>{card.user}</div>
-                    <div style={{ fontSize: 11, color: "#64748b" }}>{card.time}</div>
-                  </div>
-                </div>
-                <span style={{ fontSize: 26 }}>{card.emoji}</span>
-              </div>
+        {loading ? (
+          <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>
+            🔄 카드 로딩 중...
+          </div>
+        ) : error ? (
+          <div
+            style={{
+              padding: 16,
+              background: "#fee2e2",
+              borderRadius: 12,
+              color: "#c2410c",
+              fontSize: 14,
+            }}
+          >
+            ❌ 카드 로드 실패: {error.message}
+          </div>
+        ) : cards.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>
+            <div style={{ fontSize: 32, marginBottom: 10 }}>📝</div>
+            <div>첫 번째 기도 카드를 작성해보세요!</div>
+          </div>
+        ) : (
+          cards.map((card, i) => (
+            <FloatAnim key={card.id} delay={i * 0.05}>
               <div
                 style={{
-                  marginTop: 10,
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: "#1e293b",
-                  lineHeight: 1.5,
+                  background: `linear-gradient(135deg, ${getGradientFromBg(card.bg)})`,
+                  borderRadius: 18,
+                  padding: "16px",
+                  position: "relative",
+                  overflow: "hidden",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
                 }}
               >
-                "{card.text}"
-              </div>
-              <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end", position: "relative" }}>
-                {floaters
-                  .filter((f) => f.cardId === card.id)
-                  .map((f) => (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div
-                      key={f.id}
                       style={{
-                        position: "absolute",
-                        right: 60,
-                        bottom: 30,
-                        color: "#16a34a",
-                        fontWeight: 800,
-                        fontSize: 14,
-                        animation: "floatSeed 1s ease forwards",
-                        pointerEvents: "none",
+                        width: 34,
+                        height: 34,
+                        borderRadius: "50%",
+                        background: "rgba(255,255,255,0.7)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 18,
                       }}
                     >
-                      +2 🌱
+                      {card.avatar}
                     </div>
-                  ))}
-                <button
-                  onClick={() => handlePray(card.id)}
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: "#1e293b" }}>{card.user}</div>
+                      <div style={{ fontSize: 11, color: "#64748b" }}>방금 전</div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 26 }}>{card.emoji}</span>
+                </div>
+                <div
                   style={{
-                    background: card.prayed ? "rgba(255,255,255,0.9)" : "white",
-                    border: "none",
-                    borderRadius: 20,
-                    padding: "7px 14px",
-                    cursor: card.prayed ? "default" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    fontWeight: 700,
-                    fontSize: 13,
-                    fontFamily: "inherit",
-                    color: card.prayed ? "#16a34a" : "#3b82f6",
-                    boxShadow: sparkId === card.id ? "0 0 0 4px rgba(99,102,241,0.3)" : "none",
-                    transition: "all 0.2s",
-                    transform: sparkId === card.id ? "scale(1.1)" : "scale(1)",
+                    marginTop: 10,
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: "#1e293b",
+                    lineHeight: 1.5,
                   }}
                 >
-                  {card.prayed ? "✓ 기도했어요" : "🙏 함께 기도하기"} · {card.count}
-                </button>
+                  "{card.text}"
+                </div>
+                <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end", position: "relative" }}>
+                  {floaters
+                    .filter((f) => f.cardId === card.id)
+                    .map((f) => (
+                      <div
+                        key={f.id}
+                        style={{
+                          position: "absolute",
+                          right: 60,
+                          bottom: 30,
+                          color: "#16a34a",
+                          fontWeight: 800,
+                          fontSize: 14,
+                          animation: "floatSeed 1s ease forwards",
+                          pointerEvents: "none",
+                        }}
+                      >
+                        +2 🌱
+                      </div>
+                    ))}
+                  {(() => {
+                    const hasPrayedToday = card.dailyPrays?.[user?.uid] === today;
+                    return (
+                      <button
+                        onClick={() => !hasPrayedToday && handlePray(card.id)}
+                        style={{
+                          background: hasPrayedToday ? "rgba(255,255,255,0.9)" : "white",
+                          border: "none",
+                          borderRadius: 20,
+                          padding: "7px 14px",
+                          cursor: hasPrayedToday ? "default" : "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontWeight: 700,
+                          fontSize: 13,
+                          fontFamily: "inherit",
+                          color: hasPrayedToday ? "#16a34a" : "#3b82f6",
+                          boxShadow: sparkId === card.id ? "0 0 0 4px rgba(99,102,241,0.3)" : "none",
+                          transition: "all 0.2s",
+                          transform: sparkId === card.id ? "scale(1.1)" : "scale(1)",
+                        }}
+                      >
+                        {hasPrayedToday ? "✓ 기도했어요" : "🙏 함께 기도하기"} · {card.count}
+                      </button>
+                    );
+                  })()}
+                </div>
               </div>
-            </div>
-          </FloatAnim>
-        ))}
+            </FloatAnim>
+          ))
+        )}
       </div>
     </div>
   );
