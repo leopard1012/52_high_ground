@@ -7,6 +7,7 @@ import CrewTab from "./components/CrewTab.jsx";
 import ChallengeTab from "./components/ChallengeTab.jsx";
 import MeetingTab from "./components/MeetingTab.jsx";
 import MyTab from "./components/MyTab.jsx";
+import AdminTab from "./components/AdminTab.jsx";
 
 export default function GroundApp() {
   const { user, userProfile, loading } = useAuth();
@@ -46,13 +47,14 @@ export default function GroundApp() {
   }
 
   const seeds = userProfile?.seeds || 0;
+  const isAdmin = userProfile?.isAdmin === true;
 
-  // 크루, 모임 탭은 숨김 처리 (나중에 구현)
   const tabs = [
     { id: "home",    label: "홈",   icon: "🏠" },
     { id: "crew",    label: "크루", icon: "👥" },
     { id: "meeting", label: "모임", icon: "📍" },
     { id: "my",      label: "마이", icon: "🌿" },
+    ...(isAdmin ? [{ id: "admin", label: "관리", icon: "⚙️" }] : []),
   ];
 
   return (
@@ -144,6 +146,7 @@ export default function GroundApp() {
         {tab === "challenge" && <ChallengeTab seeds={seeds} />}
         {tab === "meeting" && <MeetingTab seeds={seeds} />}
         {tab === "my" && <MyTab seeds={seeds} />}
+        {tab === "admin" && isAdmin && <AdminTab />}
       </div>
 
       <div

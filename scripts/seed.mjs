@@ -10,18 +10,42 @@ import { readFileSync, existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 
-// ─── 인증 토큰 로드 ─────────────────────────────────────────────────────────
+// ─── 인증 토큰 로드 + 자동 갱신 ────────────────────────────────────────────
 const configPaths = [
   join(homedir(), ".config", "configstore", "firebase-tools.json"),
   join(process.env.APPDATA || "", "Configstore", "firebase-tools.json"),
 ];
 let ACCESS_TOKEN = null;
 for (const p of configPaths) {
-  if (existsSync(p)) {
-    const cfg = JSON.parse(readFileSync(p, "utf8"));
-    ACCESS_TOKEN = cfg?.tokens?.access_token;
-    if (ACCESS_TOKEN) { console.log(`  ✓ firebase-tools 토큰 로드: ${p}`); break; }
+  if (!existsSync(p)) continue;
+  const cfg = JSON.parse(readFileSync(p, "utf8"));
+  const tokens = cfg?.tokens;
+  if (!tokens) continue;
+
+  const expiresAt = tokens.expires_at ?? 0;
+  if (Date.now() < expiresAt - 60_000) {
+    // 아직 유효한 토큰
+    ACCESS_TOKEN = tokens.access_token;
+    console.log("  ✓ firebase-tools 토큰 사용 (유효)");
+  } else {
+    // 만료 — refresh_token으로 갱신
+    console.log("  ↻ access_token 만료, 갱신 중...");
+    const res = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: "563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com",
+        client_secret: "j9iVZfS8kkCEFUPaAeJV0sAi",
+        refresh_token: tokens.refresh_token,
+      }),
+    });
+    if (!res.ok) { console.error("토큰 갱신 실패:", await res.text()); break; }
+    const data = await res.json();
+    ACCESS_TOKEN = data.access_token;
+    console.log("  ✓ access_token 갱신 완료");
   }
+  if (ACCESS_TOKEN) break;
 }
 if (!ACCESS_TOKEN) {
   console.error("firebase-tools 토큰을 찾을 수 없습니다.\n'firebase login' 을 먼저 실행하세요.");

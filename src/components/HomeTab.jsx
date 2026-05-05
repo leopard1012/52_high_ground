@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "../firebase/config";
 import FloatAnim from "./FloatAnim.jsx";
 import { useCards } from "../hooks/useCards";
 import { useAuth } from "../hooks/useAuth";
@@ -6,11 +8,28 @@ import { EMOJIS, BGS } from "../data/ground-data.js";
 import { getGradientFromBg } from "../utils/ground-utils.js";
 import { updateUserSeeds } from "../firebase/services/authService";
 
+function getDailyVerse(verses) {
+  if (!verses.length) return { text: "기도를 계속하고 감사함으로 깨어 있으라", ref: "골로새서 4:2" };
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const dayOfYear = Math.floor((now - start) / 86400000);
+  return verses[dayOfYear % verses.length];
+}
+
 export default function HomeTab({ seeds }) {
   const { user, userProfile } = useAuth();
   const today = new Date().toISOString().slice(0, 10);
-  const { cards, loading, error, addCard, pray } = useCards(userProfile?.crewId);
+  const { cards, loading, error, addCard, removeCard, pray } = useCards(userProfile?.crewId);
+  const [verses, setVerses] = useState([]);
+  const dailyVerse = getDailyVerse(verses);
   const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "verses"), (s) =>
+      setVerses(s.docs.map((d) => ({ id: d.id, ...d.data() })))
+    );
+    return unsub;
+  }, []);
   const [newText, setNewText] = useState("");
   const [newEmoji, setNewEmoji] = useState("🙏");
   const [newBg, setNewBg] = useState("from-green-200 to-teal-300");
@@ -40,6 +59,15 @@ export default function HomeTab({ seeds }) {
       setTimeout(() => setFloaters((f) => f.filter((x) => x.id !== fid)), 1000);
     } catch (err) {
       alert("기도 저장 실패: " + err.message);
+    }
+  };
+
+  const handleDelete = async (cardId) => {
+    if (!window.confirm("이 기도 카드를 삭제하시겠습니까?")) return;
+    try {
+      await removeCard(cardId);
+    } catch (err) {
+      alert("삭제 실패: " + err.message);
     }
   };
 
@@ -100,9 +128,9 @@ export default function HomeTab({ seeds }) {
             오늘의 말씀
           </div>
           <div style={{ color: "white", fontSize: 15, fontWeight: 700, marginTop: 4, lineHeight: 1.4 }}>
-            "내가 너를 강하게 하리라"
+            "{dailyVerse.text}"
             <br />
-            <span style={{ fontSize: 12, opacity: 0.8 }}>— 이사야 41:10</span>
+            <span style={{ fontSize: 12, opacity: 0.8 }}>— {dailyVerse.ref}</span>
           </div>
         </div>
         <div style={{ fontSize: 40 }}>🌿</div>
@@ -286,7 +314,31 @@ export default function HomeTab({ seeds }) {
                       <div style={{ fontSize: 11, color: "#64748b" }}>방금 전</div>
                     </div>
                   </div>
-                  <span style={{ fontSize: 26 }}>{card.emoji}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 26 }}>{card.emoji}</span>
+                    {card.userId === user?.uid && (
+                      <button
+                        onClick={() => handleDelete(card.id)}
+                        style={{
+                          background: "rgba(255,255,255,0.55)",
+                          border: "none",
+                          borderRadius: 8,
+                          width: 28,
+                          height: 28,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          fontSize: 14,
+                          color: "#ef4444",
+                          flexShrink: 0,
+                        }}
+                        title="기도 카드 삭제"
+                      >
+                        🗑
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div
                   style={{
